@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import numpy as np
 import matplotlib.pyplot as plt
-from sklearn.linear_model import LinearRegression
+from sklearn.ensemble import RandomForestRegressor
 
 st.set_page_config(
     page_title="Product Demand Forecast",
@@ -50,26 +50,16 @@ st.markdown("""
 </style>
 """, unsafe_allow_html=True)
 
-
 st.markdown("""
 <div class="glow-box">
     <div class="glow-title">Product Demand Forecasting System</div>
 </div>
 """, unsafe_allow_html=True)
 
-
-
-
-
-
-
-
-
-
 st.markdown("""
 <div class="subtitle">
 A machine learning based application to forecast future product demand
-using historical sales and marketing data.
+using historical sales data.
 </div>
 """, unsafe_allow_html=True)
 
@@ -77,10 +67,10 @@ st.markdown("""
 <div class="features">
 <b>Project Highlights:</b>
 <ul>
-<li>Upload historical sales data in CSV format</li>
-<li>Predict demand for the next 6 months using machine learning</li>
-<li>Interactive visualization with graph and table views</li>
-<li>Supports multiple products with individual forecasting</li>
+<li>Upload real-world historical sales data</li>
+<li>Forecast next 6 months demand using Random Forest</li>
+<li>Supports multiple products automatically</li>
+<li>Interactive graph and table visualization</li>
 </ul>
 </div>
 """, unsafe_allow_html=True)
@@ -101,36 +91,65 @@ df = pd.read_csv(file)
 st.subheader("Uploaded Dataset")
 st.dataframe(df, use_container_width=True)
 
-df["Month_Index"] = range(1, len(df) + 1)
+df["Month"] = pd.to_datetime(df["Month"])
+df = df.sort_values("Month")
+
+df["month_num"] = df["Month"].dt.month
+df["year"] = df["Month"].dt.year
+
+products = df["family"].unique()
 
 product = st.selectbox(
     "Select Product",
-    df["Product"].unique()
+    products
 )
 
-product_df = df[df["Product"] == product]
+product_df = df[df["family"] == product].copy()
 
-X = product_df[["Month_Index", "Price", "Ads_Spend", "Prev_Sales"]]
-y = product_df["Demand"]
+product_df["time_index"] = range(1, len(product_df) + 1)
 
-model = LinearRegression()
+X = product_df[["time_index", "month_num", "year"]]
+y = product_df["sales"]
+
+model = RandomForestRegressor(
+    n_estimators=200,
+    random_state=42
+)
+
 model.fit(X, y)
 
-last_month = product_df["Month_Index"].max()
-future_months = np.arange(last_month + 1, last_month + 7)
+last_time = product_df["time_index"].max()
+last_month = product_df["month_num"].iloc[-1]
+last_year = product_df["year"].iloc[-1]
 
-future_X = pd.DataFrame({
-    "Month_Index": future_months,
-    "Price": product_df["Price"].iloc[-1],
-    "Ads_Spend": product_df["Ads_Spend"].mean(),
-    "Prev_Sales": product_df["Prev_Sales"].iloc[-1]
-})
+future_rows = []
 
-future_demand = model.predict(future_X)
+for i in range(1, 7):
+    last_month += 1
+    if last_month > 12:
+        last_month = 1
+        last_year += 1
+
+    future_rows.append([
+        last_time + i,
+        last_month,
+        last_year
+    ])
+
+future_X = pd.DataFrame(
+    future_rows,
+    columns=["time_index", "month_num", "year"]
+)
+
+future_sales = model.predict(future_X)
 
 future_df = pd.DataFrame({
-    "Future Month": [f"Month {i}" for i in range(1, 7)],
-    "Predicted Demand": future_demand
+    "Future Month": pd.date_range(
+        start=product_df["Month"].iloc[-1] + pd.offsets.MonthBegin(),
+        periods=6,
+        freq="MS"
+    ).strftime("%Y-%m"),
+    "Predicted Demand": future_sales
 })
 
 view = st.radio(
@@ -149,7 +168,7 @@ if view == "Graph":
     )
     ax.set_xlabel("Future Months")
     ax.set_ylabel("Predicted Demand")
-    ax.set_title(f"Demand Forecast for Product {product}")
+    ax.set_title(f"Demand Forecast for Product: {product}")
     ax.grid(alpha=0.3)
     st.pyplot(fig, use_container_width=True)
 else:
