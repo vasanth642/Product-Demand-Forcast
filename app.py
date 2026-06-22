@@ -11,72 +11,76 @@ st.set_page_config(
 
 st.markdown("""
 <style>
-@keyframes glow-bg {
-    0% { box-shadow: 0 0 15px rgba(0,198,255,0.6); }
-    33% { box-shadow: 0 0 15px rgba(124,255,0,0.6); }
-    66% { box-shadow: 0 0 15px rgba(255,122,0,0.6); }
-    100% { box-shadow: 0 0 15px rgba(0,198,255,0.6); }
+/* Custom dashboard styling */
+.dashboard-header {
+    background-color: #FFFFFF;
+    padding: 24px;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
+    margin-bottom: 24px;
 }
-
-.glow-box {
-    background: #111111;
-    padding: 20px;
-    border-radius: 12px;
-    text-align: center;
-    animation: glow-bg 6s infinite linear;
-}
-
-.glow-title {
-    font-size: 48px;
+.dashboard-title {
+    font-size: 28px;
     font-weight: 700;
-    color: white;
+    color: #0F172A;
     margin: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-
-.subtitle {
-    text-align: center;
-    font-size: 18px;
-    color: #cccccc;
-    margin-top: 10px;
+.dashboard-subtitle {
+    font-size: 15px;
+    color: #64748B;
+    margin-top: 6px;
+    margin-bottom: 0;
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
-
-.features {
-    max-width: 900px;
-    margin: auto;
+.highlights-container {
+    background-color: #FFFFFF;
+    padding: 20px;
+    border-radius: 8px;
+    border: 1px solid #E2E8F0;
+    margin-bottom: 24px;
+}
+.highlights-title {
     font-size: 16px;
-    color: #dddddd;
+    font-weight: 600;
+    color: #334155;
+    margin-bottom: 12px;
+}
+.highlights-list {
+    margin: 0;
+    padding-left: 20px;
+    color: #475569;
+    font-size: 14px;
     line-height: 1.6;
 }
 </style>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div class="glow-box">
-    <div class="glow-title">Product Demand Forecasting System</div>
+<div class="dashboard-header">
+    <div class="dashboard-title">Product Demand Forecasting System</div>
+    <div class="dashboard-subtitle">
+        A machine learning based application to forecast future product demand
+        using historical sales data.
+    </div>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("""
-<div class="subtitle">
-A machine learning based application to forecast future product demand
-using historical sales data.
-</div>
-""", unsafe_allow_html=True)
-
-st.markdown("""
-<div class="features">
-<b>Project Highlights:</b>
-<ul>
-<li>Upload real-world historical sales data</li>
-<li>Forecast next 6 months demand using Random Forest</li>
-<li>Supports multiple products automatically</li>
-<li>Interactive graph and table visualization</li>
-</ul>
+<div class="highlights-container">
+    <div class="highlights-title">Project Highlights</div>
+    <ul class="highlights-list">
+        <li>Upload real-world historical sales data</li>
+        <li>Forecast next 6 months demand using Random Forest</li>
+        <li>Supports interactive forecasting trend line analysis</li>
+    </ul>
 </div>
 """, unsafe_allow_html=True)
 
 st.markdown("---")
 
+# Sidebar setup
+st.sidebar.header("Data Ingestion")
 file = st.sidebar.file_uploader(
     "Upload Sales Dataset (CSV)",
     type=["csv"]
@@ -91,6 +95,7 @@ df = pd.read_csv(file)
 st.subheader("Uploaded Dataset")
 st.dataframe(df, use_container_width=True)
 
+# Data preprocessing
 df["Month"] = pd.to_datetime(df["Month"])
 df = df.sort_values("Month")
 
@@ -100,40 +105,41 @@ df["year"] = df["Month"].dt.year
 products = df["family"].unique()
 
 product = st.selectbox(
-    "Select Product",
+    "Select Product to Analyze",
     products
 )
 
 product_df = df[df["family"] == product].copy()
-
 product_df["time_index"] = range(1, len(product_df) + 1)
 
 X = product_df[["time_index", "month_num", "year"]]
 y = product_df["sales"]
 
-model = RandomForestRegressor(
-    n_estimators=200,
-    random_state=42
-)
+# Cached model training
+@st.cache_resource
+def train_forecaster(X_train, y_train):
+    mdl = RandomForestRegressor(n_estimators=200, random_state=42)
+    mdl.fit(X_train, y_train)
+    return mdl
 
-model.fit(X, y)
+model = train_forecaster(X, y)
 
+# Future dates loop execution
 last_time = product_df["time_index"].max()
-last_month = product_df["month_num"].iloc[-1]
-last_year = product_df["year"].iloc[-1]
+current_month = product_df["month_num"].iloc[-1]
+current_year = product_df["year"].iloc[-1]
 
 future_rows = []
-
 for i in range(1, 7):
-    last_month += 1
-    if last_month > 12:
-        last_month = 1
-        last_year += 1
+    current_month += 1
+    if current_month > 12:
+        current_month = 1
+        current_year += 1
 
     future_rows.append([
         last_time + i,
-        last_month,
-        last_year
+        current_month,
+        current_year
     ])
 
 future_X = pd.DataFrame(
@@ -152,24 +158,31 @@ future_df = pd.DataFrame({
     "Predicted Demand": future_sales
 })
 
+# Complete, centralized UI view selector
 view = st.radio(
-    "Select Output View",
-    ["Graph", "Table"],
+    "Select Visualization Output",
+    ["Line Graph", "Data Table"],
     horizontal=True
 )
 
-if view == "Graph":
-    fig, ax = plt.subplots(figsize=(8, 4))
+if view == "Line Graph":
+    fig, ax = plt.subplots(figsize=(8, 3.5))
     ax.plot(
         future_df["Future Month"],
         future_df["Predicted Demand"],
         marker="o",
-        linewidth=2
+        linewidth=2,
+        color="#2563EB"
     )
-    ax.set_xlabel("Future Months")
-    ax.set_ylabel("Predicted Demand")
-    ax.set_title(f"Demand Forecast for Product: {product}")
-    ax.grid(alpha=0.3)
+    ax.set_xlabel("Future Months", fontsize=10, color="#475569")
+    ax.set_ylabel("Predicted Demand", fontsize=10, color="#475569")
+    ax.set_title(f"Demand Trend Forecast for: {product}", fontsize=12, fontweight="bold", color="#0F172A")
+    ax.spines['top'].set_visible(False)
+    ax.spines['right'].set_visible(False)
+    ax.spines['left'].set_color('#CBD5E1')
+    ax.spines['bottom'].set_color('#CBD5E1')
+    ax.grid(True, linestyle="--", alpha=0.5, color="#E2E8F0")
     st.pyplot(fig, use_container_width=True)
-else:
+
+elif view == "Data Table":
     st.dataframe(future_df, use_container_width=True)
