@@ -1,5 +1,6 @@
-# Product Demand Forecasting System
+# Product Demand Forecast App
 
+![Product Demand Forecast App Banner](Readme-banner.png)
 A professional, machine learning-powered web application designed to forecast future product demand based on historical sales data. Built with Python and Streamlit, the application features a clean, high-performance developer dashboard and utilizes a Random Forest Regressor to provide accurate time-series demand predictions.
 
 ## Key Features
